@@ -1,0 +1,3 @@
+[submodule "kernel/bluejay-90hz-gamma"]
+	path = kernel/bluejay-90hz-gamma
+	url = https://github.com/yomaii/bluejay-90hz-gamma.git

@@ -1,0 +1,5 @@
+# SystemServerImpl.addExtraServices: register PortTouchFeature first.
+# Format: see tools/jar_smali.py.
+.in-method .method final addExtraServices(Landroid/content/Context;Z)V
+.after .param p2, "onlyCore"    # Z
+    invoke-static {p1}, Lcom/android/server/input/PortTouchFeature;->start(Landroid/content/Context;)V

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default grants for added apps, from the Pixel default-permissions.xml. -->
+<exceptions>
+    <!-- PixelCameraServices is a background service with no UI to request permissions -->
+    <exception package="com.google.android.apps.camera.services">
+        <permission name="android.permission.CAMERA" fixed="false"/>
+        <permission name="android.permission.POST_NOTIFICATIONS" fixed="false"/>
+        <permission name="android.permission.BLUETOOTH_CONNECT" fixed="false"/>
+        <permission name="android.permission.BLUETOOTH_SCAN" fixed="false"/>
+    </exception>
+    <!-- Android System Intelligence uses the front camera for screen attention -->
+    <exception package="com.google.android.as">
+        <permission name="android.permission.CAMERA" fixed="false"/>
+    </exception>
+</exceptions>

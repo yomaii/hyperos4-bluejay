@@ -1,0 +1,13 @@
+{
+  "basic": {
+    "cpu": "Google Tensor",
+    "battery": "4410mAh",
+    "camera": "12.2MP+12MP",
+    "screen": "6.1″ OLED",
+    "resolution": "2400×1080"
+  },
+  "camera": {
+    "front_camera": "8MP",
+    "rear_camera": "12.2MP+12MP"
+  }
+}

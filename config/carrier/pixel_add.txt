@@ -1,0 +1,5 @@
+# Copied from the Pixel factory image with their SELinux labels. Paths start with the partition name.
+
+# Carrier configuration and APNs
+product/priv-app/CarrierSettings
+product/etc/CarrierSettings

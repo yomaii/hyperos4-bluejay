@@ -1,0 +1,10 @@
+; Appended to system_ext_sepolicy.cil.
+
+; Charge protection and battery health
+; init writes /sys/devices/platform/google,charger/charge_{stop,start}_level
+(allow init sysfs_batteryinfo (file (write open)))
+; Security center, Settings and system_server read cycle count and health
+(allow system_app sysfs_batteryinfo (dir (search)))
+(allow system_app sysfs_batteryinfo (file (read getattr open)))
+(allow system_server sysfs_batteryinfo (dir (search)))
+(allow system_server sysfs_batteryinfo (file (read getattr open)))

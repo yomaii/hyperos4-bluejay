@@ -1,0 +1,13 @@
+# facehal-rs (Face AIDL v4, IFace/default). Its libraries are in /system_ext/lib64/facehal; the policy grants
+# noatsecure so the linker honours LD_LIBRARY_PATH.
+service port_facehal /system_ext/bin/hw/android.hardware.biometrics.face-service.facehal
+    class late_start
+    user system
+    group system camera input graphics
+    setenv LD_LIBRARY_PATH /system_ext/lib64/facehal
+    disabled
+
+on post-fs-data
+    mkdir /data/system_de/0/facedata 0770 system system encryption=None
+    restorecon_recursive /data/system_de/0/facedata
+    start port_facehal

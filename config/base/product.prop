@@ -1,0 +1,28 @@
+# Merged into product/etc/build.prop.
+
+# The Pixel vendor enforces privapp permissions; system_server does not start with gaps in HyperOS's lists
+ro.control_privapp_permissions=log
+
+ro.sf.lcd_density=420
+
+# 64-bit only, like madrid. With the Pixel's 64+32 abilist PackageManager rejects arm64-only multiArch apps
+# (LyraSdkSpp), com.android.phone loses its shared libraries and setup never finishes.
+ro.product.cpu.abilist=arm64-v8a
+ro.product.cpu.abilist32=
+ro.product.cpu.abilist64=arm64-v8a
+ro.zygote=zygote64
+
+# Layer caching breaks Xiaomi's blur (solid backgrounds)
+debug.sf.enable_layer_caching=0
+
+# Set by init.miui.ext.rc only for Xiaomi brands; without it the launcher overlay and gestures do not work
+ro.miui.product.home=com.miui.home
+
+# Graphite (Vulkan) as on madrid; GLES draws the launcher animation icon layer wrong on Mali
+debug.renderengine.graphite=true
+# Privacy shield needs madrid's panel and Xiaomi's HWC extension
+ro.sf.support_privacy_shield=false
+# Xiaomi SurfaceFlinger gets no touch boost from the Pixel side, so content detection drops to 22.5Hz while scrolling
+ro.surface_flinger.use_content_detection_for_refresh_rate=false
+# Miop 1 (QuadPerEdgeAAMiGlassGP) has the same glass hole and is not patched; use the Skia path
+persist.sys.sf.dynamic.glass.miop=0

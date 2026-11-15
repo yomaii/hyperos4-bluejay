@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <!-- HyperOS Telecom also answers com.google.android.euicc.action.PARTNER_CUSTOMIZATION, ahead of EuiccGoogleOverlay;
+         Google's eSIM manager takes the first one and crashes ("Cannot find SIM slot mapping"). -->
+    <component-override package="com.android.server.telecom">
+        <component class="com.android.server.telecom.PartnerReceiver" enabled="false" />
+    </component-override>
+    <!-- Iwlan loses android.uid.system when re-signed and needs this for hidden APIs -->
+    <hidden-api-whitelisted-app package="com.google.android.iwlan" />
+    <!-- CarrierSettings updates carrier configs and APNs in the background (same as Pixel nexus.xml) -->
+    <allow-in-power-save-except-idle package="com.google.android.carrier" />
+</config>

@@ -1,0 +1,15 @@
+; PortTouchFeature, registered in system_server as vendor.xiaomi.hw.touchfeature.ITouchFeature/default
+; (port_touch_service). Clients: system_server, system apps, SurfaceFlinger. app_api_service lets every app domain find it.
+(type port_touch_service)
+(roletype object_r port_touch_service)
+(typeattributeset service_manager_type (port_touch_service))
+(typeattributeset system_server_service (port_touch_service))
+(typeattributeset app_api_service (port_touch_service))
+(allow system_server port_touch_service (service_manager (add find)))
+(allow surfaceflinger port_touch_service (service_manager (find)))
+(allow surfaceflinger system_server (binder (call transfer)))
+(allow system_server surfaceflinger (binder (call transfer)))
+; PortTouchContext calls the Pixel twoshay (com.google.input.ITouchContextService/default, touch_context_service).
+; Stock only allows platform_app (SystemUIGoogle) and a few others; oneway calls.
+(allow system_server touch_context_service (service_manager (find)))
+(allow system_server twoshay (binder (call transfer)))

@@ -1,0 +1,12 @@
+# Iwlan needs MANAGE_IPSEC_TUNNELS (signature|appop); re-signed, it has to get it through the appop.
+# appops is a script, so run it through /system/bin/sh.
+service port_iwlan /system/bin/sh /system/bin/appops set com.google.android.iwlan MANAGE_IPSEC_TUNNELS allow
+    class late_start
+    user shell
+    group shell
+    seclabel u:r:shell:s0
+    oneshot
+    disabled
+
+on property:sys.boot_completed=1
+    start port_iwlan

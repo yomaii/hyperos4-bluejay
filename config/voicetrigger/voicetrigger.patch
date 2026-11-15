@@ -1,0 +1,115 @@
+# VoiceTrigger (com.miui.voicetrigger, product/app/VoiceTrigger): software-only always-on listening.
+# Format: tools/apk_smali_patch.py.
+#
+# Xiaomi wake-up has two stages: an SVA model on the Qualcomm audio DSP, then the FlexKws keyword engine and
+# voiceprint check (wakeup/c, AudioFlow) recording ~3 s from HOTWORD. The Pixel 6a AoC only loads Google
+# models (and Xiaomi's makes the audio HAL restart), so skip stage one and keep stage two recording.
+# The CPU does not sleep with the screen off while it is enabled.
+
+# 1. Device properties: models are only extracted with ro.vendor.audio.soundtrigger.* = 1, which the app cannot
+#    read from the Pixel vendor; return madrid's four values. support_record_type is left out (Qualcomm
+#    4-channel capture; the 6a records mono).
+@ classes2.dex v0/L.smali
+method .method public static d(Ljava/lang/String;I)I
+- .registers 2
+- invoke-static {p0, p1}, Landroid/os/SystemProperties;->getInt(Ljava/lang/String;I)I
+- move-result p0
+- return p0
++ .registers 4
++ const-string v0, "ro.vendor.audio.soundtrigger.permian"
++ invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++ move-result v0
++ if-nez v0, :port_one
++ const-string v0, "ro.vendor.audio.soundtrigger.sva-7.0"
++ invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++ move-result v0
++ if-nez v0, :port_one
++ const-string v0, "ro.vendor.audio.soundtrigger.xiaomievent"
++ invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++ move-result v0
++ if-nez v0, :port_one
++ const-string v0, "ro.vendor.audio.soundtrigger.wakeupword"
++ invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++ move-result v0
++ if-nez v0, :port_three
++ invoke-static {p0, p1}, Landroid/os/SystemProperties;->getInt(Ljava/lang/String;I)I
++ move-result p0
++ return p0
++ :port_one
++ const/4 p0, 0x1
++ return p0
++ :port_three
++ const/4 p0, 0x3
++ return p0
+
+# 2. enableVoiceTrigger(true): do not load a model into the HAL (treat as success)...
+@ classes2.dex com/miui/voicetrigger/wakeup/F.smali
+method .method protected o(Z)V
+- invoke-virtual {p1, v0}, Lcom/miui/voicetrigger/wakeup/r;->g(Ljava/lang/String;)I
+- move-result p1
++ # port: no first-stage model on the DSP
++ const/4 p1, 0x0
+
+# ...and once the engine session exists, start recording if it is not running (normally started by onRecognition).
+# u.k(cmd, captureDelayMs=0, captureSession=0, data=null): session 0 lets AudioRecord allocate one.
+@ classes2.dex com/miui/voicetrigger/wakeup/F.smali
+method .method protected o(Z)V
+- invoke-virtual {p1, v0, v3}, Lcom/miui/voicetrigger/wakeup/u;->h(Landroid/os/Bundle;Lcom/miui/voicetrigger/wakeup/E;)I
+- invoke-virtual {p0}, Lcom/miui/voicetrigger/wakeup/o;->D()V
+- goto :goto_b3
++ invoke-virtual {p1, v0, v3}, Lcom/miui/voicetrigger/wakeup/u;->h(Landroid/os/Bundle;Lcom/miui/voicetrigger/wakeup/E;)I
++ move-result v2
++ invoke-virtual {p0}, Lcom/miui/voicetrigger/wakeup/o;->D()V
++ if-nez v2, :goto_b3
++ sget-object v0, Lcom/miui/voicetrigger/wakeup/c;->a:Lcom/miui/voicetrigger/wakeup/c;
++ invoke-virtual {v0}, Lcom/miui/voicetrigger/wakeup/c;->E()Z
++ move-result v0
++ if-nez v0, :goto_b3
++ const-string v0, "PortVT"
++ const-string v1, "software listening: start"
++ invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
++ invoke-static {}, Lcom/miui/voicetrigger/wakeup/u;->i()Lcom/miui/voicetrigger/wakeup/u;
++ move-result-object p1
++ iget-object v0, p0, Lcom/miui/voicetrigger/wakeup/F;->e:Ljava/lang/String;
++ const/4 v1, 0x0
++ const/4 v2, 0x0
++ invoke-virtual {p1, v0, v1, v1, v2}, Lcom/miui/voicetrigger/wakeup/u;->k(Ljava/lang/String;II[B)V
++ goto :goto_b3
+
+# 3. When recording stops (wake-up done, length limit, error -> onStopAudio -> restartRecognition), run
+#    enableVoiceTrigger(true) again on the same worker thread after 1 s instead of restarting DSP recognition.
+@ classes2.dex com/miui/voicetrigger/wakeup/F.smali
+method .method public final S()V
+- iget-object v0, p0, Lcom/miui/voicetrigger/wakeup/F;->g:Lcom/miui/voicetrigger/wakeup/r;
+- if-nez v0, :cond_a
++ const-string v0, "PortVT"
++ const-string v1, "software listening: stopped, restart in 1s"
++ invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
++ new-instance v0, Landroid/os/Handler;
++ invoke-static {}, Lv0/O;->d()Landroid/os/Handler;
++ move-result-object v1
++ invoke-virtual {v1}, Landroid/os/Handler;->getLooper()Landroid/os/Looper;
++ move-result-object v1
++ invoke-direct {v0, v1}, Landroid/os/Handler;-><init>(Landroid/os/Looper;)V
++ new-instance v1, Lcom/miui/voicetrigger/wakeup/i;
++ invoke-direct {v1, p0}, Lcom/miui/voicetrigger/wakeup/i;-><init>(Lcom/miui/voicetrigger/wakeup/o;)V
++ const-wide/16 v2, 0x3e8
++ invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->postDelayed(Ljava/lang/Runnable;J)Z
++ goto :goto_40
++ iget-object v0, p0, Lcom/miui/voicetrigger/wakeup/F;->g:Lcom/miui/voicetrigger/wakeup/r;
++ if-nez v0, :cond_a
+
+# 4. Recording length limit: ~3 s (96000 / 112000 bytes) per trigger originally. Use 19 200 000 bytes
+#    (10 minutes of 16 kHz mono 16-bit); item 3 restarts it, which also resets the engine state.
+@ classes2.dex com/miui/voicetrigger/wakeup/c.smali
+method .method public final K(IILcom/miui/voicetrigger/wakeup/x;Ljava/lang/String;)V
+- :goto_e7
+- sput p1, Lcom/miui/voicetrigger/wakeup/c;->z:I
+- invoke-static {}, Lv0/L;->f()I
+- move-result p2
+- mul-int/2addr p1, p2
+- sput p1, Lcom/miui/voicetrigger/wakeup/c;->A:I
++ :goto_e7
++ const p1, 0x124f800
++ sput p1, Lcom/miui/voicetrigger/wakeup/c;->z:I
++ sput p1, Lcom/miui/voicetrigger/wakeup/c;->A:I

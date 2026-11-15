@@ -1,0 +1,26 @@
+# Removed files and directories. Paths start with the partition name (system/ is the system root).
+
+# Setup wizard hangs on its ContentProvider; replaced by a stub (config/finddevice)
+product/priv-app/MIUIFindDeviceCN
+
+# Qualcomm location; the Pixel 6a GNSS is Broadcom
+system_ext/priv-app/com.qualcomm.location
+system_ext/bin/loc_sys_service
+system_ext/etc/init/loc_sys_service.rc
+
+# Carrier device management, telemetry and ads (APKs only)
+system/priv-app/com.mobiletools.systemhelper
+product/priv-app/RegService
+product/app/MiSightServiceCn
+system_ext/app/MiSightService
+product/app/AnalyticsCore
+product/app/MSA
+product/pangu/system/app/Joyose
+
+# iorapd needs /dev/iorap_dev and restarts every 5 seconds
+system_ext/bin/iorapd
+system_ext/etc/init/init.launch_boost.rc
+
+# Qualcomm ActivityTrigger, dlopen()ed by libandroid_runtime; it looks up perf2 on every activity change
+system_ext/lib64/libqti-at.so
+system_ext/lib/libqti-at.so

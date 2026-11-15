@@ -1,0 +1,4 @@
+# Copied from the Pixel factory image with their SELinux labels. Paths start with the partition name.
+
+# Screen attention (Android System Intelligence)
+product/priv-app/DevicePersonalizationAiAiPrebuiltPixel2021

@@ -1,0 +1,76 @@
+; Domain for facehal-rs (/system_ext/bin/hw/android.hardware.biometrics.face-service.facehal).
+; hal_face_server brings service registration and the binder rules with system_server.
+; Rules collected from avc denials over boot, enroll, unlock and failed matches (audit rate limit off).
+(type port_facehal)
+(roletype object_r port_facehal)
+(type port_facehal_exec)
+(roletype object_r port_facehal_exec)
+(typeattributeset domain (port_facehal))
+(typeattributeset coredomain (port_facehal))
+(typeattributeset halserverdomain (port_facehal))
+(typeattributeset hal_face (port_facehal))
+(typeattributeset hal_face_server (port_facehal))
+(typeattributeset file_type (port_facehal_exec))
+(typeattributeset exec_type (port_facehal_exec))
+(typeattributeset system_file_type (port_facehal_exec))
+
+; Face data has its own type. /data/system_de/<user>/facedata: user 0 is created by init in the rc;
+; other users are created by the service (name-based type transition below).
+(type port_facehal_data_file)
+(roletype object_r port_facehal_data_file)
+(typeattributeset file_type (port_facehal_data_file))
+(typeattributeset data_file_type (port_facehal_data_file))
+(typeattributeset core_data_file_type (port_facehal_data_file))
+(typetransition port_facehal system_data_file dir "facedata" port_facehal_data_file)
+(allow port_facehal system_data_file (dir (search getattr)))
+(allow port_facehal system_data_file (dir (write add_name)))
+(allow port_facehal port_facehal_data_file (dir (create search getattr setattr open read write add_name remove_name rmdir)))
+(allow port_facehal port_facehal_data_file (file (create getattr setattr open read write append rename unlink lock)))
+(allow init port_facehal_data_file (dir (create search getattr setattr open read write add_name relabelto)))
+(allow init port_facehal_data_file (file (getattr relabelto)))
+(allow init system_data_file (file (relabelfrom)))
+
+; TFLite GPU delegate: Mali driver and the vendor properties it reads
+(allow port_facehal gpu_device (chr_file (getattr open read write ioctl map)))
+(allow port_facehal same_process_hal_file (file (getattr open read map execute)))
+(allow port_facehal vendor_default_prop (file (getattr open read map)))
+(allow port_facehal vendor_frc_prop (file (getattr open read map)))
+; Camera NDK and GraphicBuffer: cameraserver, gralloc, virtual device service, Xiaomi perfservice
+(allow port_facehal cameraserver_service (service_manager (find)))
+(allow port_facehal cameraserver (binder (call transfer)))
+; The camera child process allocates through gralloc as a client
+; (hal_client_domain(port_facehal, hal_graphics_allocator)); without fd use allocation fails with -129.
+(typeattributeset halclientdomain (port_facehal))
+(typeattributeset hal_graphics_allocator_client (port_facehal))
+(allow port_facehal hal_graphics_allocator_server (fd (use)))
+(allow port_facehal virtual_device_native_service (service_manager (find)))
+(allow port_facehal vendor_perf_service (service_manager (find)))
+(allow cameraserver port_facehal (dir (search)))
+(allow cameraserver port_facehal (file (read open getattr)))
+; Frames are shared between parent and child through memfd; ftruncate needs setattr
+(allow port_facehal tmpfs (file (read write getattr setattr map)))
+; Lockout timing reads /proc/uptime
+(allow port_facehal proc_uptime (file (read open getattr)))
+; Xiaomi's /data/vendor/mcd, denied for other system processes too
+(dontaudit port_facehal mcd_data_file (dir (search)))
+
+; init starts the service. Without noatsecure the linker ignores LD_LIBRARY_PATH.
+(typetransition init port_facehal_exec process port_facehal)
+(allow init port_facehal_exec (file (read getattr map execute open)))
+(allow init port_facehal (process (transition siginh rlimitinh noatsecure)))
+(allow port_facehal port_facehal_exec (file (read getattr map execute open entrypoint execute_no_trans)))
+
+; Camera callbacks and fds from cameraserver and the camera HAL
+(allow cameraserver port_facehal (binder (call transfer)))
+(allow cameraserver port_facehal (fd (use)))
+(allow hal_camera_server port_facehal (fd (use)))
+; FaceService in system_server
+(allow system_server port_facehal (binder (call transfer)))
+(allow system_server port_facehal (fd (use)))
+; Enrollment preview: the Settings surface is used as producer
+(allow surfaceflinger port_facehal (binder (call transfer)))
+(allow surfaceflinger port_facehal (fd (use)))
+(allow system_app port_facehal (binder (call transfer)))
+(allow system_app port_facehal (fd (use)))
+(allow platform_app port_facehal (binder (call transfer)))
+(allow platform_app port_facehal (fd (use)))

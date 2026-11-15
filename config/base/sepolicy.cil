@@ -1,0 +1,5 @@
+; Appended to system_ext_sepolicy.cil: rules that live in the vendor policy on Xiaomi phones.
+
+; PowerKeeper (system_app) lists /sys/class/thermal; without dir/lnk_file read listFiles() returns null and it crashes.
+(allow system_app sysfs_thermal (dir (search read open getattr)))
+(allow system_app sysfs_thermal (lnk_file (read getattr)))

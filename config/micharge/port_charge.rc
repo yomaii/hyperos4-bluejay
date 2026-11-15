@@ -1,0 +1,8 @@
+# Xiaomi charge protection -> Pixel charge limits. PortMiCharge sets
+#   persist.sys.port.chg_limit  stop charging at this level (100 = no limit)
+#   persist.sys.port.chg_start  resume below this level (0 when unlimited)
+# start is cleared first so start < stop holds. The nodes reset to 0 / 100 on boot.
+on property:sys.boot_completed=1 && property:persist.sys.port.chg_limit=*
+    write /sys/devices/platform/google,charger/charge_start_level 0
+    write /sys/devices/platform/google,charger/charge_stop_level ${persist.sys.port.chg_limit}
+    write /sys/devices/platform/google,charger/charge_start_level ${persist.sys.port.chg_start}

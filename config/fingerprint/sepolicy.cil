@@ -1,0 +1,10 @@
+; Appended to system_ext_sepolicy.cil.
+
+; Under-display fingerprint props from product.prop land in vendor_persist_sys_default_prop / vendor_default_prop;
+; system_server, SystemUI and Settings need to read them.
+(allow system_server vendor_default_prop (file (read open getattr map)))
+(allow system_server vendor_persist_sys_default_prop (file (read open getattr map)))
+(allow platform_app vendor_default_prop (file (read open getattr map)))
+(allow platform_app vendor_persist_sys_default_prop (file (read open getattr map)))
+(allow system_app vendor_default_prop (file (read open getattr map)))
+(allow system_app vendor_persist_sys_default_prop (file (read open getattr map)))

@@ -1,0 +1,5 @@
+# Merged into product/etc/build.prop.
+
+# Charge protection and battery health pages
+persist.vendor.smartchg=16
+persist.vendor.battery.health=true

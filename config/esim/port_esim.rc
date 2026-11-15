@@ -1,0 +1,13 @@
+# Turns on the Xiaomi eSIM manager after boot (see port_esim.sh).
+service port_esim /system/bin/sh /system_ext/bin/port_esim.sh
+    class late_start
+    # shell uid only gets WRITE_SECURE_SETTINGS with persist.security.adbinput=1; system uid makes
+    # settings put fail in getCallingPackage (uid 1000 has many packages).
+    user root
+    group shell
+    seclabel u:r:shell:s0
+    oneshot
+    disabled
+
+on property:sys.boot_completed=1
+    start port_esim

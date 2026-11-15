@@ -1,0 +1,7 @@
+# Copied from the Pixel factory image with their SELinux labels. Paths start with the partition name.
+
+# Wi-Fi calling (Iwlan itself is installed by build.sh)
+system_ext/priv-app/ShannonQualifiedNetworksService
+system_ext/etc/permissions/com.shannon.qualifiednetworksservice.xml
+system_ext/etc/permissions/privapp-permlist_com.google.android.iwlan.xml
+system_ext/etc/sysconfig/sysconfig_com.google.android.iwlan.xml

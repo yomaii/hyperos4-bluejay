@@ -1,0 +1,12 @@
+# Copied from the Pixel factory image with their SELinux labels. Paths start with the partition name.
+
+# eSIM
+product/priv-app/EuiccGoogle
+system_ext/priv-app/EuiccGoogleOverlay
+system_ext/priv-app/EuiccSupportPixel
+system_ext/priv-app/EuiccSupportPixelPermissions
+product/overlay/EuiccSupportPixelOverlay
+system_ext/etc/permissions/com.google.euiccpixel.xml
+system_ext/etc/permissions/com.google.euiccpixel.permissions.xml
+system_ext/etc/default-permissions/default-permissions-euiccpixel.xml
+product/etc/permissions/android.hardware.telephony.euicc.xml

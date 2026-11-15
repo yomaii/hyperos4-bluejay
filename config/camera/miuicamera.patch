@@ -1,0 +1,157 @@
+# MiuiCamera 6.8.002230.0 (product/priv-app/MiuiCamera): 0.6x ultra wide. Format: tools/apk_smali_patch.py.
+#
+# The Pixel 6a rear camera 0 is a logical multi-camera (main + ultra wide); the ultra wide is reached by lowering
+# CONTROL_ZOOM_RATIO to 0.6 and the HAL switches lenses. With the generic device config MiuiCamera sees one rear
+# camera: zoomRange [1.0, 7.0], crop-region zoom, a single 1x button.
+
+# a. Photo mode zoom range (j9/d): the lower bound comes from g.D(mode) only on Xiaomi devices (Pe/b.F()), 1.0
+#    otherwise. Use g.D(mode) always. The original branch stored the compare result in p0 over the mode; use v3.
+@ classes3.dex j9/d.smali
+method .method public P5()Landroid/util/Range;
+- cmpl-float p0, v1, v5
+- if-nez p0, :cond_d7
++ cmpl-float v3, v1, v5
++ if-nez v3, :cond_d7
+@ classes3.dex j9/d.smali
+method .method public P5()Landroid/util/Range;
+- :cond_d7
+- new-instance p0, Landroid/util/Range;
+- invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
++ :cond_d7
++ # port: lower bound = first zoom button of this mode (0.6 on Pixel 6a)
++ invoke-static {p0}, Lcom/android/camera/data/data/g;->D(I)F
++ move-result v2
++ new-instance p0, Landroid/util/Range;
++ invoke-static {v2}, Ljava/lang/Float;->valueOf(F)Ljava/lang/Float;
+
+# b. Without Xiaomi's zoomRatioSupported tag, use standard CONTROL_ZOOM_RATIO when supported (applyZoomRatio-R
+#    branch of l9/p0.l1) instead of crop-region zoom, which cannot go below 1x.
+@ classes3.dex l9/h.smali
+method .method public static c5(Ll9/g;)Z
+- :cond_31
+- sget-object v1, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
+- iput-object v1, p0, Ll9/g;->J3:Ljava/lang/Boolean;
++ :cond_31
++ # port: fall back to the standard CONTROL_ZOOM_RATIO_RANGE
++ sget-object v1, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
++ iget-object v3, p0, Ll9/g;->d:Landroid/hardware/camera2/CameraCharacteristics;
++ if-eqz v3, :port_c5
++ sget-object v4, Landroid/hardware/camera2/CameraCharacteristics;->CONTROL_ZOOM_RATIO_RANGE:Landroid/hardware/camera2/CameraCharacteristics$Key;
++ invoke-virtual {v3, v4}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
++ move-result-object v3
++ if-eqz v3, :port_c5
++ sget-object v1, Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;
++ :port_c5
++ iput-object v1, p0, Ll9/g;->J3:Ljava/lang/Boolean;
+
+# c. Zoom button stops: g.S(mode) for rear cameras; photo mode (163) has only 1x in the generic config.
+#    Return {0.6, 1, 2} for 163 at the start of S.
+@ classes.dex com/android/camera/data/data/g.smali
+method .method public static S(I)[F
+- const/4 v0, 0x1
+- sget-boolean v1, LPe/b;->j:Z
++ # port: photo mode zoom buttons 0.6x / 1x / 2x (Pixel logical camera 0 goes down to 0.6)
++ const/16 v0, 0xa3
++ if-ne p0, v0, :port_s
++ const/4 v0, 0x3
++ new-array v0, v0, [F
++ const v1, 0x3f19999a    # 0.6f
++ const/4 v2, 0x0
++ aput v1, v0, v2
++ const/high16 v1, 0x3f800000    # 1.0f
++ const/4 v2, 0x1
++ aput v1, v0, v2
++ const/high16 v1, 0x40000000    # 2.0f
++ const/4 v2, 0x2
++ aput v1, v0, v2
++ return-object v0
++ :port_s
++ const/4 v0, 0x1
++ sget-boolean v1, LPe/b;->j:Z
+
+# d. H4/p0.b() collapses the zoom bar to one button on non-Xiaomi devices (Pe/b.E()).
+#    Do not collapse when there is more than one stop.
+@ classes.dex H4/p0.smali
+method .method public static c(ILH4/p0$a;Ll9/g;Z)V
+- :cond_3e
+- invoke-static {}, LH4/p0;->b()Z
+- move-result v0
++ :cond_3e
++ # port: more than one zoom button for this mode -> do not collapse the toggle
++ invoke-static {p0}, Lcom/android/camera/data/data/g;->S(I)[F
++ move-result-object v0
++ array-length v0, v0
++ if-le v0, v2, :port_b
++ const/4 v0, 0x0
++ goto :goto_42
++ :port_b
++ invoke-static {}, LH4/p0;->b()Z
++ move-result v0
+
+# e. Tapping a zoom button only works when Pe/b.F() (Xiaomi device). Drop the check.
+@ classes.dex H4/m0.smali
+method .method public final Os(II)V
+- invoke-static {}, LPe/b;->F()Z
+- move-result v0
+- if-eqz v0, :cond_3ce
++ # port: zoom buttons work on non-Xiaomi devices too
+
+# Beauty (Shine) button crash "unknown beauty type": l9/h.Y1() needs device config l9/g.m() >= 3, which is 0 here,
+#    so only the old 3D beauty tag "1" is added and the beauty panel (W.initView) throws on it.
+#    a) Y1() always true: use the new beauty tag "2" (o0.J());
+#    b) front photo: v2/o0.Z() and r6/f0.lf() skip all tags when l.m0(mode) && !l9/h.n5(); drop that skip so the
+#       front branch adds its scene tags;
+#    c) the panel skips unknown tags instead of throwing.
+@ classes.dex com/android/camera/fragment/W.smali
+method .method public final initView(Landroid/view/View;)V
+- iget-object v0, v0, Lcom/xiaomi/camera/base/ui/fragments/f;->TAG:Ljava/lang/String;
+- const-string/jumbo v1, "unknown beauty type = "
+- invoke-virtual {v1, v14}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
+- move-result-object v1
+- new-array v2, v9, [Ljava/lang/Object;
+- invoke-static {v0, v1, v2}, Lcom/android/camera/log/Log;->e(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/Object;)V
+- new-instance v0, Ljava/lang/RuntimeException;
+- const-string/jumbo v1, "unknown beauty type"
+- invoke-direct {v0, v1}, Ljava/lang/RuntimeException;-><init>(Ljava/lang/String;)V
+- throw v0
++ # port: skip unknown beauty tab (legacy 3D beauty "1") instead of crashing
++ goto/16 :goto_24c
+@ classes3.dex l9/h.smali
+method .method public static Y1(Ll9/g;)Z
+- if-eqz p0, :cond_b
+- invoke-virtual {p0}, Ll9/g;->m()I
+- move-result p0
+- const/4 v0, 0x3
+- if-lt p0, v0, :cond_b
++ # port: treat as beauty version >= 3 (Pixel has no Xiaomi beauty version), use new beauty tab "2"
+@ classes.dex v2/o0.smali
+method .method public final Z(Lv2/K0$a;)V
+- if-eqz v1, :cond_6bd
+- if-eqz v11, :cond_7ef
++ # port: front camera always gets a beauty tab (n5() is false on Pixel front)
+@ classes.dex r6/f0.smali
+method .method public final lf()V
+- if-nez v0, :cond_53
++ # port: same as o0.Z(): don't take the special front path when n5() is false
++ goto :cond_53
+
+# d) Front photo with h.m5() false and g.k() not 2/3 adds only tag "4" (o0.E()), which the panel does not know.
+#    Add "2" (o0.I()) as for the rear camera.
+@ classes.dex v2/o0.smali
+method .method public final Z(Lv2/K0$a;)V
+- invoke-static {v8}, Lv2/o0;->E(Ll9/g;)Lcom/android/camera/data/data/d;
++ # port: front fallback tab "4" is unknown to the beauty panel, use tab "2" instead
++ invoke-virtual {v0}, Lv2/o0;->I()Lcom/android/camera/data/data/d;
+
+# e) Hide the beauty button: the Pixel camera driver has no xiaomi.beauty.* parameters, so beauty has no effect.
+#    v2/o0.g0() decides whether the button is shown in every mode; make it return false. a)-d) stay as fallbacks.
+@ classes.dex v2/o0.smali
+method .method public final g0()Z
+- invoke-virtual {p0}, Lv2/o0;->T()Ljava/util/ArrayList;
+- move-result-object p0
+- invoke-virtual {p0}, Ljava/util/ArrayList;->size()I
+- move-result p0
+- if-lez p0, :cond_c
+- const/4 p0, 0x1
+- return p0
++ # port: Pixel HAL has no Xiaomi beauty, hide the beauty button

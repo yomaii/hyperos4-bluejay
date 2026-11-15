@@ -1,0 +1,7 @@
+# Merged into product/etc/build.prop.
+
+# Dual SIM (physical + eSIM) from first boot; switching at runtime crashes com.android.phone once
+persist.radio.multisim.config=dsds
+ro.com.android.mobiledata=true
+# Shows eSIM UI
+ro.vendor.miui.support_esim=true

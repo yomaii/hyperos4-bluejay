@@ -1,0 +1,23 @@
+# MiuiSystemUI (system_ext/priv-app/MiuiSystemUI): AOD long press on the fingerprint area the AOSP way
+# (onAodInterrupt). Format: tools/apk_smali_patch.py. See PortAodLongPress.smali.
+
+# 1. New class: registers com.google.sensor.long_press and runs UdfpsController's AOD press flow
+@ classes.dex com/android/systemui/biometrics/PortAodLongPress.smali
+file PortAodLongPress.smali
+
+# 1b. AOD tap shows the fingerprint icon for a few seconds
+@ classes.dex com/android/systemui/biometrics/PortAodLongPress$Tap.smali
+file PortAodLongPress$Tap.smali
+
+# 1c. Lift to wake: android.sensor.pick_up_gesture (setting: settings.patch)
+@ classes.dex com/android/systemui/biometrics/PortAodLongPress$Pickup.smali
+file PortAodLongPress$Pickup.smali
+
+# 2. Start it at the beginning of AuthController.start()
+@ classes.dex com/android/systemui/biometrics/AuthController.smali
+method .method public final start()V
+- iget-object v0, p0, Lcom/android/systemui/biometrics/AuthController;->mCommandQueue:Lcom/android/systemui/statusbar/CommandQueue;
+- invoke-virtual {v0, p0}, Lcom/android/systemui/statusbar/CommandQueue;->addCallback(Lcom/android/systemui/statusbar/CommandQueue$Callbacks;)V
++ invoke-static {p0}, Lcom/android/systemui/biometrics/PortAodLongPress;->start(Lcom/android/systemui/biometrics/AuthController;)V
++ iget-object v0, p0, Lcom/android/systemui/biometrics/AuthController;->mCommandQueue:Lcom/android/systemui/statusbar/CommandQueue;
++ invoke-virtual {v0, p0}, Lcom/android/systemui/statusbar/CommandQueue;->addCallback(Lcom/android/systemui/statusbar/CommandQueue$Callbacks;)V

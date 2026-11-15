@@ -1,0 +1,387 @@
+diff --git a/native/LogRedirect.cpp b/native/LogRedirect.cpp
+new file mode 100644
+index 0000000..716c809
+--- /dev/null
++++ b/native/LogRedirect.cpp
+@@ -0,0 +1,66 @@
++// Port: init connects stderr of services to /dev/null, so HAL diagnostics (eprintln!, fprintf(stderr)) are lost.
++// Pipe fd 2 into a thread that forwards lines to logcat (tag FaceHAL). The camera worker does the same.
++#include <android/log.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <pthread.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++
++namespace {
++
++void* pump(void* arg) {
++    const int fd = static_cast<int>(reinterpret_cast<intptr_t>(arg));
++    char buffer[1024];
++    size_t length = 0;
++    for (;;) {
++        const ssize_t count = read(fd, buffer + length, sizeof(buffer) - 1 - length);
++        if (count < 0 && errno == EINTR) {
++            continue;
++        }
++        if (count <= 0) {
++            break;
++        }
++        length += static_cast<size_t>(count);
++        size_t start = 0;
++        for (size_t index = 0; index < length; ++index) {
++            if (buffer[index] == '\n') {
++                buffer[index] = '\0';
++                __android_log_write(ANDROID_LOG_INFO, "FaceHAL", buffer + start);
++                start = index + 1;
++            }
++        }
++        if (start == 0 && length == sizeof(buffer) - 1) {
++            buffer[length] = '\0';
++            __android_log_write(ANDROID_LOG_INFO, "FaceHAL", buffer);
++            length = 0;
++        } else {
++            memmove(buffer, buffer + start, length - start);
++            length -= start;
++        }
++    }
++    close(fd);
++    return nullptr;
++}
++
++}  // namespace
++
++extern "C" void facehal_redirect_stderr_to_log() {
++    int fds[2];
++    if (pipe2(fds, O_CLOEXEC) != 0) {
++        return;
++    }
++    if (dup2(fds[1], STDERR_FILENO) < 0) {
++        close(fds[0]);
++        close(fds[1]);
++        return;
++    }
++    close(fds[1]);
++    setvbuf(stderr, nullptr, _IONBF, 0);
++    pthread_t thread;
++    if (pthread_create(&thread, nullptr, pump, reinterpret_cast<void*>(static_cast<intptr_t>(fds[0]))) == 0) {
++        pthread_detach(thread);
++    }
++}
+diff --git a/native/SenseTimeBridge.cpp b/native/SenseTimeBridge.cpp
+index c6e72c6..f287d6c 100644
+--- a/native/SenseTimeBridge.cpp
++++ b/native/SenseTimeBridge.cpp
+@@ -1,3 +1,9 @@
++#include <condition_variable>
++#include <deque>
++#include <functional>
++#include <future>
++#include <mutex>
++#include <thread>
+ #include "SenseTimeBridge.h"
+ 
+ #include <android/log.h>
+@@ -159,7 +165,7 @@ void* openLibrary() {
+         return nullptr;
+     }
+     constexpr std::array<const char*, 2> candidates = {
+-            "/vendor/lib64/facehal/libjni_stfaceunlock_api.so",
++            "/system_ext/lib64/facehal/libjni_stfaceunlock_api.so",
+             "libjni_stfaceunlock_api.so",
+     };
+     for (const char* candidate : candidates) {
+@@ -236,7 +242,7 @@ bool rollbackTemplate(FacehalAlgorithm* algorithm) {
+ 
+ }  // namespace
+ 
+-extern "C" FacehalAlgorithm* facehal_algorithm_open(const char* templateDirectory) {
++static FacehalAlgorithm* facehal_algorithm_open_impl(const char* templateDirectory) {
+     std::lock_guard runtimeLock(gAlgorithmMutex);
+     if (templateDirectory == nullptr || templateDirectory[0] == '\0' ||
+         std::strlen(templateDirectory) + std::strlen(kTemplateFileSuffix) >=
+@@ -365,7 +371,7 @@ extern "C" FacehalAlgorithm* facehal_algorithm_open(const char* templateDirector
+     return algorithm.release();
+ }
+ 
+-extern "C" void facehal_algorithm_close(FacehalAlgorithm* algorithm) {
++static void facehal_algorithm_close_impl(FacehalAlgorithm* algorithm) {
+     if (algorithm == nullptr) {
+         return;
+     }
+@@ -387,7 +393,7 @@ extern "C" void facehal_algorithm_close(FacehalAlgorithm* algorithm) {
+     delete algorithm;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_process_nv21(
++static int32_t facehal_algorithm_process_nv21_impl(
+         FacehalAlgorithm* algorithm, const uint8_t* image, size_t imageSize, int32_t width,
+         int32_t height, int32_t stride, int32_t action, int32_t config) {
+     if (algorithm == nullptr || image == nullptr || width <= 0 || height <= 0 || stride < width ||
+@@ -414,7 +420,7 @@ extern "C" int32_t facehal_algorithm_process_nv21(
+     return status;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_current_face_id(const FacehalAlgorithm* algorithm) {
++static int32_t facehal_algorithm_current_face_id_impl(const FacehalAlgorithm* algorithm) {
+     if (algorithm == nullptr || algorithm->currentFaceId == nullptr) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+     }
+@@ -422,7 +428,7 @@ extern "C" int32_t facehal_algorithm_current_face_id(const FacehalAlgorithm* alg
+     return *algorithm->currentFaceId;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_enumerate(
++static int32_t facehal_algorithm_enumerate_impl(
+         const FacehalAlgorithm* algorithm, int32_t* enrollmentIds, size_t capacity) {
+     if (algorithm == nullptr || (capacity > 0 && enrollmentIds == nullptr)) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+@@ -444,7 +450,7 @@ extern "C" int32_t facehal_algorithm_enumerate(
+     return static_cast<int32_t>(count);
+ }
+ 
+-extern "C" int32_t facehal_algorithm_slots(
++static int32_t facehal_algorithm_slots_impl(
+         const FacehalAlgorithm* algorithm, int32_t* enrollmentIds, size_t capacity) {
+     if (algorithm == nullptr || enrollmentIds == nullptr || capacity < kTemplateCount) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+@@ -460,7 +466,7 @@ extern "C" int32_t facehal_algorithm_slots(
+     return static_cast<int32_t>(kTemplateCount);
+ }
+ 
+-extern "C" int32_t facehal_algorithm_remove(
++static int32_t facehal_algorithm_remove_impl(
+         FacehalAlgorithm* algorithm, int32_t enrollmentId) {
+     if (algorithm == nullptr || enrollmentId < 1) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+@@ -479,7 +485,7 @@ extern "C" int32_t facehal_algorithm_remove(
+     return 0;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_remove_all(FacehalAlgorithm* algorithm) {
++static int32_t facehal_algorithm_remove_all_impl(FacehalAlgorithm* algorithm) {
+     if (algorithm == nullptr) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+     }
+@@ -498,7 +504,7 @@ extern "C" int32_t facehal_algorithm_remove_all(FacehalAlgorithm* algorithm) {
+     return 0;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_set_active_slot(
++static int32_t facehal_algorithm_set_active_slot_impl(
+         FacehalAlgorithm* algorithm, int32_t slot) {
+     if (algorithm == nullptr || slot < -1 || slot >= static_cast<int32_t>(kTemplateCount)) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+@@ -511,7 +517,7 @@ extern "C" int32_t facehal_algorithm_set_active_slot(
+     return 0;
+ }
+ 
+-extern "C" int32_t facehal_algorithm_reset(FacehalAlgorithm* algorithm) {
++static int32_t facehal_algorithm_reset_impl(FacehalAlgorithm* algorithm) {
+     if (algorithm == nullptr || algorithm->managerReset == nullptr ||
+         algorithm->currentFaceId == nullptr) {
+         return FACEHAL_ALGORITHM_ERROR_INVALID_ARGUMENT;
+@@ -522,7 +528,7 @@ extern "C" int32_t facehal_algorithm_reset(FacehalAlgorithm* algorithm) {
+     return 0;
+ }
+ 
+-extern "C" void facehal_algorithm_set_orientation(
++static void facehal_algorithm_set_orientation_impl(
+         FacehalAlgorithm* algorithm, int32_t orientation) {
+     if (algorithm == nullptr) {
+         return;
+@@ -540,3 +546,114 @@ extern "C" void facehal_algorithm_set_orientation(
+             break;
+     }
+ }
++
++// ---- Port: run all algorithm calls on one dedicated thread ----
++// The SenseTime library uses the TFLite GPU delegate (OpenGL), which must be called on the thread that
++// initialized it. The service starts a new thread per enroll/authenticate while the algorithm instance is
++// created once at boot, so the first frame fails (status -4). All 11 entry points go to one thread here.
++namespace {
++
++class AlgorithmThread {
++public:
++    static AlgorithmThread& instance() {
++        static AlgorithmThread* thread = new AlgorithmThread();
++        return *thread;
++    }
++
++    template <typename F>
++    auto run(F function) -> decltype(function()) {
++        using Result = decltype(function());
++        if (std::this_thread::get_id() == worker_.get_id()) {
++            return function();
++        }
++        std::packaged_task<Result()> task(std::move(function));
++        std::future<Result> result = task.get_future();
++        {
++            std::lock_guard<std::mutex> lock(mutex_);
++            queue_.emplace_back([&task] { task(); });
++        }
++        condition_.notify_one();
++        return result.get();
++    }
++
++private:
++    AlgorithmThread() : worker_([this] { loop(); }) {}
++
++    void loop() {
++        for (;;) {
++            std::function<void()> job;
++            {
++                std::unique_lock<std::mutex> lock(mutex_);
++                condition_.wait(lock, [this] { return !queue_.empty(); });
++                job = std::move(queue_.front());
++                queue_.pop_front();
++            }
++            job();
++        }
++    }
++
++    std::mutex mutex_;
++    std::condition_variable condition_;
++    std::deque<std::function<void()>> queue_;
++    std::thread worker_;
++};
++
++template <typename F>
++auto onAlgorithmThread(F function) -> decltype(function()) {
++    return AlgorithmThread::instance().run(std::move(function));
++}
++
++}  // namespace
++
++extern "C" FacehalAlgorithm* facehal_algorithm_open(const char* template_directory) {
++    return onAlgorithmThread([=] { return facehal_algorithm_open_impl(template_directory); });
++}
++
++extern "C" void facehal_algorithm_close(FacehalAlgorithm* algorithm) {
++    onAlgorithmThread([=] { facehal_algorithm_close_impl(algorithm); });
++}
++
++extern "C" int32_t facehal_algorithm_process_nv21(
++        FacehalAlgorithm* algorithm, const uint8_t* image, size_t image_size, int32_t width,
++        int32_t height, int32_t stride, int32_t action, int32_t config) {
++    return onAlgorithmThread([=] {
++        return facehal_algorithm_process_nv21_impl(
++                algorithm, image, image_size, width, height, stride, action, config);
++    });
++}
++
++extern "C" int32_t facehal_algorithm_current_face_id(const FacehalAlgorithm* algorithm) {
++    return onAlgorithmThread([=] { return facehal_algorithm_current_face_id_impl(algorithm); });
++}
++
++extern "C" int32_t facehal_algorithm_enumerate(
++        const FacehalAlgorithm* algorithm, int32_t* enrollment_ids, size_t capacity) {
++    return onAlgorithmThread(
++            [=] { return facehal_algorithm_enumerate_impl(algorithm, enrollment_ids, capacity); });
++}
++
++extern "C" int32_t facehal_algorithm_slots(
++        const FacehalAlgorithm* algorithm, int32_t* enrollment_ids, size_t capacity) {
++    return onAlgorithmThread(
++            [=] { return facehal_algorithm_slots_impl(algorithm, enrollment_ids, capacity); });
++}
++
++extern "C" int32_t facehal_algorithm_remove(FacehalAlgorithm* algorithm, int32_t enrollment_id) {
++    return onAlgorithmThread([=] { return facehal_algorithm_remove_impl(algorithm, enrollment_id); });
++}
++
++extern "C" int32_t facehal_algorithm_remove_all(FacehalAlgorithm* algorithm) {
++    return onAlgorithmThread([=] { return facehal_algorithm_remove_all_impl(algorithm); });
++}
++
++extern "C" int32_t facehal_algorithm_set_active_slot(FacehalAlgorithm* algorithm, int32_t slot) {
++    return onAlgorithmThread([=] { return facehal_algorithm_set_active_slot_impl(algorithm, slot); });
++}
++
++extern "C" int32_t facehal_algorithm_reset(FacehalAlgorithm* algorithm) {
++    return onAlgorithmThread([=] { return facehal_algorithm_reset_impl(algorithm); });
++}
++
++extern "C" void facehal_algorithm_set_orientation(FacehalAlgorithm* algorithm, int32_t orientation) {
++    onAlgorithmThread([=] { facehal_algorithm_set_orientation_impl(algorithm, orientation); });
++}
+diff --git a/rust/service/src/main.rs b/rust/service/src/main.rs
+index 9ece946..c1346bf 100644
+--- a/rust/service/src/main.rs
++++ b/rust/service/src/main.rs
+@@ -12,7 +12,13 @@ use face::FaceService;
+ 
+ const INSTANCE: &str = "android.hardware.biometrics.face.IFace/default";
+ 
++unsafe extern "C" {
++    fn facehal_redirect_stderr_to_log();
++}
++
+ fn main() {
++    // Port: stderr to logcat (tag FaceHAL), see native/LogRedirect.cpp
++    unsafe { facehal_redirect_stderr_to_log() };
+     if let Some(exit_code) = camera::run_worker_from_args() {
+         std::process::exit(exit_code);
+     }
+diff --git a/rust/service/src/session.rs b/rust/service/src/session.rs
+index 67a6062..6445c59 100644
+--- a/rust/service/src/session.rs
++++ b/rust/service/src/session.rs
+@@ -32,7 +32,7 @@ use std::sync::{Arc, Condvar, Mutex};
+ use std::thread;
+ use std::time::{Duration, Instant};
+ 
+-const STORE_ROOT: &str = "/data/vendor_de";
++const STORE_ROOT: &str = "/data/system_de";
+ const CAMERA_WIDTH: i32 = 640;
+ const CAMERA_HEIGHT: i32 = 480;
+ const FRAME_TIMEOUT_MS: i32 = 1_000;
+diff --git a/scripts/build-production.sh b/scripts/build-production.sh
+index 6491d32..96d821e 100755
+--- a/scripts/build-production.sh
++++ b/scripts/build-production.sh
+@@ -28,7 +28,7 @@ output=${FACEHAL_OUTPUT:-"$root/android.hardware.biometrics.face-service.facehal
+ [ -d "$workspace/third_party/binder" ] || { echo "missing standalone Binder source" >&2; exit 1; }
+ 
+ mkdir -p "$workspace/native"
+-"$cxx" -DFACEHAL_VENDOR_CAMERA_NDK=1 -std=c++17 -O2 -fPIC -Wall -Wextra -Werror \
++"$cxx" -std=c++17 -O2 -fPIC -Wall -Wextra -Werror \
+     -I "$root/native" -c "$root/native/CameraBridge.cpp" \
+     -o "$workspace/native/CameraBridge.o"
+ "$cxx" -std=c++17 -O2 -fPIC -Wall -Wextra -Werror \
+@@ -37,7 +37,11 @@ mkdir -p "$workspace/native"
+ "$cxx" -std=c++17 -O2 -fPIC -Wall -Wextra -Werror \
+     -I "$root/native" -c "$root/native/SenseTimeBridge.cpp" \
+     -o "$workspace/native/SenseTimeBridge.o"
++"$cxx" -std=c++17 -O2 -fPIC -Wall -Wextra -Werror \
++    -I "$root/native" -c "$root/native/LogRedirect.cpp" \
++    -o "$workspace/native/LogRedirect.o"
+ "$ar" rcs "$workspace/native/libfacehal_bridge.a" \
++    "$workspace/native/LogRedirect.o" \
+     "$workspace/native/CameraBridge.o" \
+     "$workspace/native/PreviewBridge.o" \
+     "$workspace/native/SenseTimeBridge.o"
+@@ -57,7 +61,7 @@ export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$ar"
+ }
+ 
+ cd "$workspace"
+-cargo build --offline --release --target "$target" -p facehal_service
++cargo build --release --target "$target" -p facehal_service
+ mkdir -p "$(dirname -- "$output")"
+ install -m 0755 "target/$target/release/facehal_service" "$output"
+ 
+diff --git a/standalone-build/crates/service/build.rs b/standalone-build/crates/service/build.rs
+index 10a60e4..3be1a03 100644
+--- a/standalone-build/crates/service/build.rs
++++ b/standalone-build/crates/service/build.rs
+@@ -14,7 +14,7 @@ fn main() {
+     println!("cargo::rustc-link-search=native={system_lib64}");
+     println!("cargo::rustc-link-search=native={vendor_lib64}");
+     println!("cargo::rustc-link-lib=static=facehal_bridge");
+-    println!("cargo::rustc-link-lib=dylib=camera2ndk_vendor");
++    println!("cargo::rustc-link-lib=dylib=camera2ndk");
+     println!("cargo::rustc-link-lib=dylib=mediandk");
+     println!("cargo::rustc-link-lib=dylib=nativewindow");
+     println!("cargo::rustc-link-lib=dylib=log");

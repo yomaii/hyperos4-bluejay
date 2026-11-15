@@ -1,0 +1,24 @@
+# Settings (system_ext/priv-app/Settings): show "lift to wake". Format: tools/apk_smali_patch.py.
+# Settings requires Xiaomi's pickup sensor (type 33171036 = 0x1fa265c) named "oem7 Pick Up Gesture" or
+# "pickup  Wakeup". The 6a has Google's android.sensor.pick_up_gesture (type 25, wake-up, one-shot).
+# Accept a type 25 wake-up sensor regardless of name. Waking is done by PortAodLongPress$Pickup in SystemUI.
+
+# 1. Lock screen settings page and search
+@ classes2.dex com/android/settings/AodAndLockScreenSettings.smali
+method .method public static isSupportPickupWakeup(Landroid/content/Context;)Z
+- const v1, 0x1fa265c
++ const/16 v1, 0x19
+@ classes2.dex com/android/settings/AodAndLockScreenSettings.smali
+method .method public static isSupportPickupWakeup(Landroid/content/Context;)Z
+- const-string/jumbo v1, "oem7 Pick Up Gesture"
++ return v2
+
+# 2. appfunctions copy
+@ classes2.dex com/android/settings/appfunctions/utils/MiuiAppFunctionUtils.smali
+method .method public static isSupportPickupWakeup(Landroid/content/Context;)Z
+- const v1, 0x1fa265c
++ const/16 v1, 0x19
+@ classes2.dex com/android/settings/appfunctions/utils/MiuiAppFunctionUtils.smali
+method .method public static isSupportPickupWakeup(Landroid/content/Context;)Z
+- const-string/jumbo v1, "oem7 Pick Up Gesture"
++ return v2

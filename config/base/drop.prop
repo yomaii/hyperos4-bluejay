@@ -1,0 +1,8 @@
+# Properties commented out in system / system_ext / product build.prop.
+
+# Points to Qualcomm's media_profiles_vendor.xml; zygote aborts on preload
+media.settings.xml
+
+# Qualcomm tuning that overrides the Pixel vendor and causes flicker on app launch
+debug.sf.latch_unsignaled
+debug.sf.disable_backpressure

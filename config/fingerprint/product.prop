@@ -1,0 +1,11 @@
+# Merged into product/etc/build.prop.
+
+# Under-display fingerprint, normally set by Xiaomi's odm. Pixel 6a udfpsBounds Rect(425,1600 - 655,1830).
+persist.vendor.sys.fp.vendor=goodix_fod
+ro.hardware.fp.fod=true
+persist.vendor.sys.fp.fod.location.X_Y=425,1600
+persist.vendor.sys.fp.fod.size.width_height=230,230
+ro.hardware.fp.fod.location=low
+ro.hardware.fp.fod.touch.ctl.version=2.0
+ro.hardware.fp.fod.lowlight.lux.threshold=3
+ro.hardware.fp.fod.lowlight.brightness.threshold=411

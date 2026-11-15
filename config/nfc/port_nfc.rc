@@ -1,0 +1,4 @@
+# XMNfcNci (com.android.nfc) only creates NfcService when /dev/nq-nci exists; it does not open it.
+# The Pixel 6a ST chip node is /dev/st21nfc; the HAL is the vendor's android.hardware.nfc-service.st.
+on early-boot
+    symlink /dev/st21nfc /dev/nq-nci

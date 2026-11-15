@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Find Device stub: only the service, no provider, so the setup wizard sees no Find Device app. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.xiaomi.finddevice"
+    android:versionCode="1" android:versionName="port-stub">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="36" />
+    <application android:label="FindDevice" android:hasCode="true" android:allowBackup="false">
+        <service android:name="com.xiaomi.finddevice.v2.FindDeviceStatusManagerService" android:exported="true" />
+    </application>
+</manifest>

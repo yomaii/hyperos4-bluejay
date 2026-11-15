@@ -1,0 +1,6 @@
+# genfscon entries removed from the HyperOS policy because they conflict with the Pixel vendor
+# (secilc fails). One per line: filesystem path.
+
+proc /fs/f2fs
+sysfs /class/powercap
+sysfs /devices/virtual/powercap

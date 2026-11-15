@@ -1,0 +1,8 @@
+# Copied from the Pixel factory image with their SELinux labels. Paths start with the partition name.
+
+# VoLTE: Shannon IMS for the Samsung modem
+system_ext/priv-app/ShannonIms
+system_ext/priv-app/ShannonRcs
+system_ext/etc/permissions/com.shannon.imsservice.xml
+system_ext/etc/permissions/com.shannon.rcsservice.xml
+product/etc/sysconfig/allowlist_com.shannon.imsservice.xml

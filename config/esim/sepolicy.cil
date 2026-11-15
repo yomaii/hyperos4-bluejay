@@ -1,0 +1,27 @@
+; Appended to system_ext_sepolicy.cil.
+
+; euicc_app domain for Google's eSIM manager, from the Pixel system_ext policy
+; (gs101-sepolicy system_ext/private/euicc_app.te) without neverallows. seapp_contexts entry added by build.sh.
+(type euicc_app)
+(roletype object_r euicc_app)
+(type euicc_app_userfaultfd)
+(roletype object_r euicc_app_userfaultfd)
+(typeattributeset domain (euicc_app))
+(typeattributeset appdomain (euicc_app))
+(typeattributeset netdomain (euicc_app))
+(typeattributeset bluetoothdomain (euicc_app))
+(typeattributeset coredomain (euicc_app))
+(typetransition euicc_app tmpfs file appdomain_tmpfs)
+(typetransition euicc_app euicc_app anon_inode "[userfaultfd]" euicc_app_userfaultfd)
+(allow euicc_app euicc_app_userfaultfd (anon_inode (ioctl read create)))
+(allow euicc_app appdomain_tmpfs (file (ioctl read write getattr map execute)))
+(allowx euicc_app appdomain_tmpfs (ioctl file ((range 0x7701 0x770b))))
+(allow euicc_app app_api_service (service_manager (find)))
+(allow euicc_app radio_service (service_manager (find)))
+(allow euicc_app cameraserver_service (service_manager (find)))
+(allow euicc_app camera_config_prop (file (read getattr map open)))
+(allow euicc_app bootloader_prop (file (read getattr map open)))
+(allow euicc_app exported_default_prop (file (read getattr map open)))
+(allow euicc_app esim_modem_prop (file (read getattr map open)))
+; HyperOS TelephonyFrameworkInitializer looks up HyperOSCustFeatureResolve
+(allow euicc_app hyperos_cust_feature_resolve_service (service_manager (find)))

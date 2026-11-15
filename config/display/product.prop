@@ -1,0 +1,5 @@
+# Merged into product/etc/build.prop.
+
+# When false, DisplayFeatureManagerService sends transaction 31037 at boot and SurfaceFlinger stops following
+# the requested refresh rate
+ro.vendor.fps.switch.default=true
